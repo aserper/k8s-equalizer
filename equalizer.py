@@ -13,6 +13,14 @@ import sys
 from collections import defaultdict
 from typing import Dict, List, Optional, Sequence
 
+try:
+    from kubernetes import client, config
+except ImportError as _IMPORT_ERROR:  # pragma: no cover - runtime guardrail
+    client = None  # type: ignore[assignment]
+    config = None  # type: ignore[assignment]
+else:
+    _IMPORT_ERROR = None
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -64,13 +72,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_client(kubeconfig: Optional[str], context: Optional[str]):
-    try:
-        from kubernetes import client, config
-    except ImportError as exc:  # pragma: no cover - runtime guardrail
+    if client is None or config is None:
         raise SystemExit(
             "This script requires the kubernetes Python package. Install it with\n"
             "  pip install kubernetes\n"
-            f"Original error: {exc}"
+            f"Original error: {_IMPORT_ERROR}"
         )
 
     try:
@@ -248,8 +254,6 @@ def execute_plan(
 
 
 def create_eviction_body(pod, grace_period: Optional[int]):
-    from kubernetes import client
-
     delete_opts = client.V1DeleteOptions(
         grace_period_seconds=grace_period,
     )
