@@ -6,17 +6,17 @@ The script inspects pod placement, plans evictions on overloaded nodes, and opti
 ## Quick Start
 
 ```bash
-# install dependency if needed
-pip install kubernetes
+# install dependencies if needed
+pip install -r requirements.txt
 
 # inspect what would happen
-python scripts/equalizer.py \
+python equalizer.py \
   --namespace default \
   --selector app=my-app \
   --dry-run
 
 # apply the plan once you’re comfortable
-python scripts/equalizer.py \
+python equalizer.py \
   --namespace default \
   --selector app=my-app
 ```
@@ -28,6 +28,7 @@ python scripts/equalizer.py \
 - Python 3.7+
 - Access to a Kubernetes cluster plus a working kubeconfig (or run in-cluster)
 - Python package: `kubernetes`
+- Optional: `rich` for the enhanced terminal experience (falls back to plain text otherwise)
 - Permissions to list pods/nodes and create eviction requests in the target namespace
 
 ## CLI Reference
@@ -43,7 +44,7 @@ python scripts/equalizer.py \
 | `--max-evictions` | Caps how many pods are evicted in one run. |
 | `--dry-run` | Prints the plan without issuing eviction calls. |
 
-Run `python scripts/equalizer.py --help` to see the same list in your terminal.
+Run `python equalizer.py --help` to see the same list in your terminal.
 
 ## How It Works
 
@@ -58,13 +59,22 @@ Run `python scripts/equalizer.py --help` to see the same list in your terminal.
 ## Example Output
 
 ```
-Planned evictions:
-  - Evict default/my-app-6f4d6fdfd5-dp7l2 from node-1 (current=5, target=3)
-  - Evict default/my-app-6f4d6fdfd5-s8k2m from node-1 (current=5, target=3)
-No eviction requests were issued.  # when running with --dry-run
+══════════════════ Equalizer Eviction Plan ✨ ════════════════════
+╔═══════════════ Plan Snapshot ═══════════════╗
+║ Planned evictions   2                       ║
+║ Affected nodes      1                       ║
+╚═════════════════════════════════════════════╝
+
+┏━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳══════════┳━━━━━━┳━━━━━━┳━━━━━━━━┓
+┃ Node         ┃ Namespace/Pod               ┃ Priority ┃ Age  ┃ Load ┃ Target ┃
+┡━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇══════════╇━━━━━━╇━━━━━━╇━━━━━━━━┩
+│ node-1       │ default/my-app-6f4d6f...    │ 0        │ 18m  │ 5 → 4│ 3      │
+│ node-1       │ default/my-app-6f4d6f...    │ 0        │ 12m  │ 4 → 3│ 3      │
+└──────────────┴─────────────────────────────┴──────────┴──────┴──────┴────────┘
+Tip: run with --dry-run first to preview the rollout safely.
 ```
 
-When not in `--dry-run` mode the script reports how many eviction requests were successfully created.
+When not in `--dry-run` mode the script reports how many eviction requests were successfully created, highlighting the count in green.
 
 ## Tips
 
