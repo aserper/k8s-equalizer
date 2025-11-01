@@ -54,7 +54,7 @@ Run `python equalizer.py --help` to see the same list in your terminal.
 4. Groups pods by node and computes an even target spread based on current load.
 5. For overloaded nodes, picks safe-to-evict pods (skips mirror pods, DaemonSets, pods marked `safe-to-evict=false`, or not `Pending/Running`).
 6. Sorts candidates by priority, evicting newer pods first to protect long-running workloads.
-7. Prints the plan, warns if pods exist on nodes outside the selected pool, and—unless `--dry-run`—issues eviction API calls.
+7. Prints the plan alongside per-node pod counts/percentages, warns if pods exist on nodes outside the selected pool, and—unless `--dry-run`—issues eviction API calls.
 
 ## Example Output
 
@@ -72,6 +72,14 @@ Run `python equalizer.py --help` to see the same list in your terminal.
 │ node-1       │ default/my-app-6f4d6f...    │ 0        │ 12m  │ 4 → 3│ 3      │
 └──────────────┴─────────────────────────────┴──────────┴──────┴──────┴────────┘
 Tip: run with --dry-run first to preview the rollout safely.
+
+════════════════════ Node Distribution ════════════════════
+┏━━━━━━━━┳━━━━━━┳━━━━━━━┓
+┃ Node   ┃ Pods ┃ Share ┃
+┡━━━━━━━━╇━━━━━━╇━━━━━━━┩
+│ node-1 │ 5    │ 62.5% │
+│ node-2 │ 3    │ 37.5% │
+└────────┴──────┴───────┘
 ```
 
 When not in `--dry-run` mode the script reports how many eviction requests were successfully created, highlighting the count in green.

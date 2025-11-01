@@ -280,7 +280,7 @@ def plan_evictions(
     return plan
 
 
-def print_plan(plan, targets, pods_by_node):
+def print_plan(plan, targets, pods_by_node, nodes):
     if not plan:
         if _HAS_RICH and STDOUT_CONSOLE is not None and Panel is not None and Text is not None:
             STDOUT_CONSOLE.rule(Text("Equalizer Status", style="title"))
@@ -302,7 +302,7 @@ def print_plan(plan, targets, pods_by_node):
         component is not None
         for component in (STDOUT_CONSOLE, Table, Panel, Text, box)
     ):
-        _render_rich_plan(plan, targets, pods_by_node)
+        _render_rich_plan(plan, targets, pods_by_node, nodes)
         return
 
     print("Planned evictions:")
@@ -315,7 +315,7 @@ def print_plan(plan, targets, pods_by_node):
         )
 
 
-def _render_rich_plan(plan, targets, pods_by_node) -> None:
+def _render_rich_plan(plan, targets, pods_by_node, nodes) -> None:
     assert STDOUT_CONSOLE is not None  # for mypy
     assert Table is not None and Panel is not None and Text is not None and box is not None
 
@@ -378,6 +378,81 @@ def _render_rich_plan(plan, targets, pods_by_node) -> None:
     STDOUT_CONSOLE.print(
         Text("Tip: run with --dry-run first to preview the rollout safely.", style="muted")
     )
+
+
+def _render_rich_distribution(nodes, pods_by_node) -> None:
+    assert (
+        STDOUT_CONSOLE is not None
+        and Table is not None
+        and box is not None
+        and Text is not None
+        and Panel is not None
+    )
+
+    summary, total = _summarize_distribution(nodes, pods_by_node)
+    STDOUT_CONSOLE.rule(Text("Node Distribution", style="title"))
+
+    if total == 0:
+        STDOUT_CONSOLE.print(
+            Panel.fit(
+                Text("No running pods matched the current filters.", style="warning"),
+                border_style="warning",
+            )
+        )
+        return
+
+    table = Table(
+        box=box.ROUNDED,
+        show_header=True,
+        header_style="title",
+        expand=True,
+    )
+    table.add_column("Node", style="value", no_wrap=True)
+    table.add_column("Pods", justify="right", style="value")
+    table.add_column("Share", justify="right", style="muted")
+
+    for node, count, pct in summary:
+        share_text = f"{pct:.1f}%"
+        table.add_row(f"[value]{node}[/value]", str(count), share_text)
+
+    STDOUT_CONSOLE.print(table)
+
+
+def print_node_distribution(nodes: Sequence[str], pods_by_node: Dict[str, Sequence]) -> None:
+    summary, total = _summarize_distribution(nodes, pods_by_node)
+    if _HAS_RICH and all(
+        component is not None for component in (STDOUT_CONSOLE, Table, box, Text, Panel)
+    ):
+        _render_rich_distribution(nodes, pods_by_node)
+        return
+
+    print("Node distribution:")
+    if total == 0:
+        print("  (no pods matched the current filters)")
+        return
+    for node, count, pct in summary:
+        print(f"  - {node}: {count} pod(s) [{pct:.1f}%]")
+
+
+def _summarize_distribution(
+    nodes: Sequence[str], pods_by_node: Dict[str, Sequence]
+) -> Sequence[tuple]:
+    ordered = list(nodes)
+    extras = sorted(set(pods_by_node.keys()) - set(nodes))
+    ordered.extend(extras)
+
+    counts = []
+    total = 0
+    for node in ordered:
+        count = len(pods_by_node.get(node, ()))
+        counts.append((node, count))
+        total += count
+
+    if total == 0:
+        return [(node, count, 0.0) for node, count in counts], 0
+
+    summary = [(node, count, (count / total) * 100.0) for node, count in counts]
+    return summary, total
 
 
 def warn_on_unlisted_nodes(pods_by_node: Dict[str, Sequence], nodes: Sequence[str]) -> None:
@@ -446,7 +521,8 @@ def main():
     warn_on_unlisted_nodes(pods_by_node, nodes)
     targets = compute_targets(nodes, pods_by_node)
     plan = plan_evictions(nodes, pods_by_node, targets)
-    print_plan(plan, targets, pods_by_node)
+    print_plan(plan, targets, pods_by_node, nodes)
+    print_node_distribution(nodes, pods_by_node)
     if args.dry_run:
         return 0
     eviction_api = core_api
