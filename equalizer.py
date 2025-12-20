@@ -2,9 +2,9 @@
 """Evenly redistribute Kubernetes workloads across available nodes.
 
 Example:
-    python scripts/equalizer.py --namespace default --selector app=my-app --dry-run
+    python scripts/equalizer.py --namespace default --selector app=my-app
 
-Run with --dry-run first to review the eviction plan before applying it.
+Run without arguments to preview. Use --execute to apply the eviction plan.
 """
 
 import argparse
@@ -129,9 +129,9 @@ def parse_args() -> argparse.Namespace:
         help="Upper bound on number of evictions performed in a single run.",
     )
     parser.add_argument(
-        "--dry-run",
+        "--execute",
         action="store_true",
-        help="Plan balancing actions without evicting pods.",
+        help="Execute the planned evictions (default is dry-run).",
     )
     return parser.parse_args()
 
@@ -376,7 +376,7 @@ def _render_rich_plan(plan, targets, pods_by_node, nodes) -> None:
 
     STDOUT_CONSOLE.print(table)
     STDOUT_CONSOLE.print(
-        Text("Tip: run with --dry-run first to preview the rollout safely.", style="muted")
+        Text("Tip: run with --execute to apply the rollout.", style="muted")
     )
 
 
@@ -523,7 +523,7 @@ def main():
     plan = plan_evictions(nodes, pods_by_node, targets)
     print_plan(plan, targets, pods_by_node, nodes)
     print_node_distribution(nodes, pods_by_node)
-    if args.dry_run:
+    if not args.execute:
         return 0
     eviction_api = core_api
     policy_api_cls = getattr(client, "PolicyV1Api", None)
@@ -538,7 +538,7 @@ def main():
         plan=plan,
         eviction_api=eviction_api,
         client_module=client,
-        dry_run=args.dry_run,
+        dry_run=False,
         grace_period=args.grace_period,
         max_evictions=args.max_evictions,
     )
