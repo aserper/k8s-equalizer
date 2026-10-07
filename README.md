@@ -8,6 +8,8 @@ The script inspects pod placement, plans evictions on overloaded nodes, and opti
 ```bash
 # install dependencies if needed
 pip install -r requirements.txt
+# on machines where pip is unavailable, use uv:
+#   uv venv .venv && uv pip install -p .venv/bin/python -r requirements.txt
 
 # inspect what would happen
 python equalizer.py \
@@ -18,7 +20,8 @@ python equalizer.py \
 # apply the plan once you’re comfortable
 python equalizer.py \
   --namespace default \
-  --selector app=my-app
+  --selector app=my-app \
+  --execute
 ```
 
 > Always run with `--dry-run` first so you can review the plan before pods are evicted.
@@ -42,7 +45,8 @@ python equalizer.py \
 | `--context` | Named context inside the kubeconfig. |
 | `--grace-period` | Overrides the pod eviction grace period (seconds). |
 | `--max-evictions` | Caps how many pods are evicted in one run. |
-| `--dry-run` | Prints the plan without issuing eviction calls. |
+| `--dry-run` | Prints the plan without issuing eviction calls (the default). |
+| `--execute` | Execute the planned evictions. Required to actually evict anything. |
 
 Run `python equalizer.py --help` to see the same list in your terminal.
 
@@ -71,7 +75,7 @@ Run `python equalizer.py --help` to see the same list in your terminal.
 │ node-1       │ default/my-app-6f4d6f...    │ 0        │ 18m  │ 5 → 4│ 3      │
 │ node-1       │ default/my-app-6f4d6f...    │ 0        │ 12m  │ 4 → 3│ 3      │
 └──────────────┴─────────────────────────────┴──────────┴──────┴──────┴────────┘
-Tip: run with --dry-run first to preview the rollout safely.
+Tip: run with --execute to apply the rollout.
 
 ════════════════════ Node Distribution ════════════════════
 ┏━━━━━━━━┳━━━━━━┳━━━━━━━┓
@@ -82,7 +86,7 @@ Tip: run with --dry-run first to preview the rollout safely.
 └────────┴──────┴───────┘
 ```
 
-When not in `--dry-run` mode the script reports how many eviction requests were successfully created, highlighting the count in green.
+When run with `--execute`, the script reports how many eviction requests were successfully created, highlighting the count in green.
 
 ## Tips
 

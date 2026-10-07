@@ -11,15 +11,15 @@ import argparse
 import datetime
 import sys
 from collections import defaultdict
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
+_IMPORT_ERROR: Optional[Exception] = None
 try:
     from kubernetes import client, config
-except ImportError as _IMPORT_ERROR:  # pragma: no cover - runtime guardrail
+except ImportError as _exc:  # pragma: no cover - runtime guardrail
+    _IMPORT_ERROR = _exc
     client = None  # type: ignore[assignment]
     config = None  # type: ignore[assignment]
-else:
-    _IMPORT_ERROR = None
 
 try:
     from rich import box
@@ -128,10 +128,16 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Upper bound on number of evictions performed in a single run.",
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the plan without issuing eviction calls (default).",
+    )
+    mode.add_argument(
         "--execute",
         action="store_true",
-        help="Execute the planned evictions (default is dry-run).",
+        help="Execute the planned evictions.",
     )
     return parser.parse_args()
 
@@ -242,7 +248,7 @@ def _format_pod_age(pod) -> str:
 
 def compute_targets(
     nodes: Sequence[str],
-    pods_by_node: Dict[str, Sequence],
+    pods_by_node: Mapping[str, Sequence],
 ) -> Dict[str, int]:
     counts = {node: len(pods_by_node.get(node, ())) for node in nodes}
     total = sum(counts.values())
@@ -256,8 +262,8 @@ def compute_targets(
 
 def plan_evictions(
     nodes: Sequence[str],
-    pods_by_node: Dict[str, Sequence],
-    targets: Dict[str, int],
+    pods_by_node: Mapping[str, Sequence],
+    targets: Mapping[str, int],
 ) -> List:
     plan = []
     for node in nodes:
@@ -418,7 +424,7 @@ def _render_rich_distribution(nodes, pods_by_node) -> None:
     STDOUT_CONSOLE.print(table)
 
 
-def print_node_distribution(nodes: Sequence[str], pods_by_node: Dict[str, Sequence]) -> None:
+def print_node_distribution(nodes: Sequence[str], pods_by_node: Mapping[str, Sequence]) -> None:
     summary, total = _summarize_distribution(nodes, pods_by_node)
     if _HAS_RICH and all(
         component is not None for component in (STDOUT_CONSOLE, Table, box, Text, Panel)
@@ -435,8 +441,8 @@ def print_node_distribution(nodes: Sequence[str], pods_by_node: Dict[str, Sequen
 
 
 def _summarize_distribution(
-    nodes: Sequence[str], pods_by_node: Dict[str, Sequence]
-) -> Sequence[tuple]:
+    nodes: Sequence[str], pods_by_node: Mapping[str, Sequence]
+) -> Tuple[List[Tuple[str, int, float]], int]:
     ordered = list(nodes)
     extras = sorted(set(pods_by_node.keys()) - set(nodes))
     ordered.extend(extras)
@@ -455,7 +461,7 @@ def _summarize_distribution(
     return summary, total
 
 
-def warn_on_unlisted_nodes(pods_by_node: Dict[str, Sequence], nodes: Sequence[str]) -> None:
+def warn_on_unlisted_nodes(pods_by_node: Mapping[str, Sequence], nodes: Sequence[str]) -> None:
     unknown = sorted(set(pods_by_node.keys()) - set(nodes))
     if unknown:
         joined = ", ".join(unknown)
@@ -499,6 +505,7 @@ def execute_plan(
 
 
 def create_eviction_body(pod, grace_period: Optional[int]):
+    assert client is not None  # guaranteed after load_client() succeeds
     delete_opts = client.V1DeleteOptions(
         grace_period_seconds=grace_period,
     )
